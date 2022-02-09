@@ -27,7 +27,7 @@
 #include <string.h>
 
 static int pkcs11_find_certs(PKCS11_TOKEN *, CK_SESSION_HANDLE);
-static int pkcs11_next_cert(PKCS11_CTX *, PKCS11_TOKEN *, CK_SESSION_HANDLE);
+static int pkcs11_next_cert(PKCS11_CTX *, PKCS11_TOKEN *, PKCS11_SLOT *, CK_SESSION_HANDLE);
 static int pkcs11_init_cert(PKCS11_CTX *ctx, PKCS11_TOKEN *token,
 	CK_SESSION_HANDLE session, CK_OBJECT_HANDLE o, PKCS11_CERT **);
 
@@ -73,7 +73,7 @@ int pkcs11_remove_certificate(PKCS11_CERT *cert)
 	if (pkcs11_get_session(slot, 1, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx, C_DestroyObject(session, cpriv->object));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_DestroyObject(session, cpriv->object));
 	pkcs11_put_session(slot, session);
 
 	CRYPTOKI_checkerr(CKR_F_PKCS11_REMOVE_CERTIFICATE, rv);
@@ -117,19 +117,19 @@ static int pkcs11_find_certs(PKCS11_TOKEN *token, CK_SESSION_HANDLE session)
 
 	/* Tell the PKCS11 lib to enumerate all matching objects */
 	cert_search_class = CKO_CERTIFICATE;
-	rv = CRYPTOKI_call(ctx, C_FindObjectsInit(session, cert_search_attrs, 1));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_FindObjectsInit(session, cert_search_attrs, 1));
 	CRYPTOKI_checkerr(CKR_F_PKCS11_FIND_CERTS, rv);
 
 	do {
-		res = pkcs11_next_cert(ctx, token, session);
+          res = pkcs11_next_cert(ctx, token, slot, session);
 	} while (res == 0);
 
-	CRYPTOKI_call(ctx, C_FindObjectsFinal(session));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_FindObjectsFinal(session));
 
 	return (res < 0) ? -1 : 0;
 }
 
-static int pkcs11_next_cert(PKCS11_CTX *ctx, PKCS11_TOKEN *token,
+static int pkcs11_next_cert(PKCS11_CTX *ctx, PKCS11_TOKEN *token, PKCS11_SLOT *slot,
 		CK_SESSION_HANDLE session)
 {
 	CK_OBJECT_HANDLE obj;
@@ -137,7 +137,7 @@ static int pkcs11_next_cert(PKCS11_CTX *ctx, PKCS11_TOKEN *token,
 	int rv;
 
 	/* Get the next matching object */
-	rv = CRYPTOKI_call(ctx, C_FindObjects(session, &obj, 1, &count));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_FindObjects(session, &obj, 1, &count));
 	CRYPTOKI_checkerr(CKR_F_PKCS11_NEXT_CERT, rv);
 
 	if (count == 0)
@@ -358,7 +358,7 @@ int pkcs11_store_certificate(PKCS11_TOKEN *token, X509 *x509, char *label,
 		pkcs11_addattr(attrs + n++, CKA_ID, id, id_len);
 
 	/* Now call the pkcs11 module to create the object */
-	rv = CRYPTOKI_call(ctx, C_CreateObject(session, attrs, n, &object));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_CreateObject(session, attrs, n, &object));
 
 	/* Zap all memory allocated when building the template */
 	pkcs11_zap_attrs(attrs, n);

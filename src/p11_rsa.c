@@ -95,21 +95,21 @@ int pkcs11_private_encrypt(int flen,
 		return -1;
 
 	/* Try signing first, as applications are more likely to use it */
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_SignInit(session, &mechanism, kpriv->object));
 	if (!rv && kpriv->always_authenticate == CK_TRUE)
 		rv = pkcs11_authenticate(key, session);
 	if (!rv)
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_Sign(session, (CK_BYTE *)from, flen, to, &size));
 	if (rv == CKR_KEY_FUNCTION_NOT_PERMITTED) {
 		/* OpenSSL may use it for encryption rather than signing */
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_EncryptInit(session, &mechanism, kpriv->object));
 		if (!rv && kpriv->always_authenticate == CK_TRUE)
 			rv = pkcs11_authenticate(key, session);
 		if (!rv)
-			rv = CRYPTOKI_call(ctx,
+			CRYPTOKI_call_handle_session(rv, slot, ctx,
 				C_Encrypt(session, (CK_BYTE *)from, flen, to, &size));
 	}
 	pkcs11_put_session(slot, session);
@@ -140,12 +140,12 @@ int pkcs11_private_decrypt(int flen, const unsigned char *from, unsigned char *t
 	if (pkcs11_get_session(slot, 0, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_DecryptInit(session, &mechanism, kpriv->object));
 	if (!rv && kpriv->always_authenticate == CK_TRUE)
 		rv = pkcs11_authenticate(key, session);
 	if (!rv)
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_Decrypt(session, (CK_BYTE *)from, size,
 				(CK_BYTE_PTR)to, &size));
 	pkcs11_put_session(slot, session);

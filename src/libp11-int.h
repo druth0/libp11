@@ -127,6 +127,16 @@ extern PKCS11_KEY_ops *pkcs11_ec_ops;
 	} while (0)
 #define CRYPTOKI_call(ctx, func_and_args) \
 	PRIVCTX(ctx)->method->func_and_args
+
+#define CRYPTOKI_call_handle_session(rv, slot, ctx, func_and_args) \
+        do { \
+                rv = PRIVCTX(ctx)->method->func_and_args; \
+                if (rv == CKR_SESSION_HANDLE_INVALID || rv == CKR_SESSION_CLOSED || rv == CKR_DEVICE_REMOVED) { \
+                        pkcs11_reload_slot(slot);                                  \
+                        rv = PRIVCTX(ctx)->method->func_and_args; \
+                } \
+        } while (0)
+
 extern int ERR_load_CKR_strings(void);
 
 /* Memory allocation */

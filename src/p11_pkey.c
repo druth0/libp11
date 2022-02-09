@@ -368,7 +368,7 @@ static int pkcs11_try_pkey_rsa_sign(EVP_PKEY_CTX *evp_pkey_ctx,
 	if (!rv && kpriv->always_authenticate == CK_TRUE)
 		rv = pkcs11_authenticate(key, session);
 	if (!rv)
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_Sign(session, (CK_BYTE_PTR)tbs, tbslen, sig, &size));
 	pkcs11_put_session(slot, session);
 #ifdef DEBUG
@@ -469,7 +469,7 @@ static int pkcs11_try_pkey_rsa_decrypt(EVP_PKEY_CTX *evp_pkey_ctx,
 	if (pkcs11_get_session(slot, 0, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_DecryptInit(session, &mechanism, kpriv->object));
 	if (!rv && kpriv->always_authenticate == CK_TRUE)
 		rv = pkcs11_authenticate(key, session);
@@ -604,7 +604,7 @@ static int pkcs11_try_pkey_ec_sign(EVP_PKEY_CTX *evp_pkey_ctx,
 
 	if (pkcs11_get_session(slot, 0, &session))
 		return -1;
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_SignInit(session, &mechanism, kpriv->object));
 	if (!rv && kpriv->always_authenticate == CK_TRUE)
 		rv = pkcs11_authenticate(key, session);

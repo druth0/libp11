@@ -251,7 +251,7 @@ int pkcs11_login(PKCS11_SLOT *slot, int so, const char *pin)
 	if (pkcs11_get_session(slot, so, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_Login(session, so ? CKU_SO : CKU_USER,
 			(CK_UTF8CHAR *) pin, pin ? (unsigned long) strlen(pin) : 0));
 	pkcs11_put_session(slot, session);
@@ -308,7 +308,7 @@ int pkcs11_logout(PKCS11_SLOT *slot)
 	}
 
 	if (pkcs11_get_session(slot, spriv->logged_in, &session) == 0) {
-		rv = CRYPTOKI_call(ctx, C_Logout(session));
+		CRYPTOKI_call_handle_session(rv, slot, ctx, C_Logout(session));
 		pkcs11_put_session(slot, session);
 	}
 	CRYPTOKI_checkerr(CKR_F_PKCS11_LOGOUT, rv);
@@ -363,7 +363,7 @@ int pkcs11_init_pin(PKCS11_TOKEN *token, const char *pin)
 	}
 
 	len = pin ? (int) strlen(pin) : 0;
-	rv = CRYPTOKI_call(ctx, C_InitPIN(session, (CK_UTF8CHAR *) pin, len));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_InitPIN(session, (CK_UTF8CHAR *) pin, len));
 	pkcs11_put_session(slot, session);
 	CRYPTOKI_checkerr(CKR_F_PKCS11_INIT_PIN, rv);
 
@@ -387,7 +387,7 @@ int pkcs11_change_pin(PKCS11_SLOT *slot, const char *old_pin,
 
 	old_len = old_pin ? (int) strlen(old_pin) : 0;
 	new_len = new_pin ? (int) strlen(new_pin) : 0;
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_SetPIN(session, (CK_UTF8CHAR *) old_pin, old_len,
 			(CK_UTF8CHAR *) new_pin, new_len));
 	pkcs11_put_session(slot, session);
@@ -411,7 +411,7 @@ int pkcs11_seed_random(PKCS11_SLOT *slot, const unsigned char *s,
 		return -1;
 	}
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_SeedRandom(session, (CK_BYTE_PTR) s, s_len));
 	pkcs11_put_session(slot, session);
 	CRYPTOKI_checkerr(CKR_F_PKCS11_SEED_RANDOM, rv);
@@ -434,7 +434,7 @@ int pkcs11_generate_random(PKCS11_SLOT *slot, unsigned char *r,
 		return -1;
 	}
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_GenerateRandom(session, (CK_BYTE_PTR) r, r_len));
 	pkcs11_put_session(slot, session);
 

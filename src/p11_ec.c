@@ -406,12 +406,12 @@ static int pkcs11_ecdsa_sign(const unsigned char *msg, unsigned int msg_len,
 	if (pkcs11_get_session(slot, 0, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_SignInit(session, &mechanism, kpriv->object));
 	if (!rv && kpriv->always_authenticate == CK_TRUE)
 		rv = pkcs11_authenticate(key, session);
 	if (!rv)
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_Sign(session, (CK_BYTE *)msg, msg_len, sigret, &ck_sigsize));
 	pkcs11_put_session(slot, session);
 
@@ -598,7 +598,7 @@ static int pkcs11_ecdh_derive(unsigned char **out, size_t *outlen,
 	if (pkcs11_get_session(slot, 0, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx, C_DeriveKey(session, &mechanism, kpriv->object,
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_DeriveKey(session, &mechanism, kpriv->object,
 		newkey_template, sizeof(newkey_template)/sizeof(*newkey_template), &newkey));
 	if (rv != CKR_OK)
 		goto error;
@@ -606,14 +606,14 @@ static int pkcs11_ecdh_derive(unsigned char **out, size_t *outlen,
 	/* Return the value of the secret key and/or the object handle of the secret key */
 	if (out && outlen) { /* pkcs11_ec_ckey only asks for the value */
 		if (pkcs11_getattr_alloc(ctx, session, newkey, CKA_VALUE, out, outlen)) {
-			CRYPTOKI_call(ctx, C_DestroyObject(session, newkey));
+			CRYPTOKI_call_handle_session(rv, slot, ctx, C_DestroyObject(session, newkey));
 			goto error;
 		}
 	}
 	if (tmpnewkey) /* For future use (not used by pkcs11_ec_ckey) */
 		*tmpnewkey = newkey;
 	else /* Destroy the temporary key */
-		CRYPTOKI_call(ctx, C_DestroyObject(session, newkey));
+		CRYPTOKI_call_handle_session(rv, slot, ctx, C_DestroyObject(session, newkey));
 
 	pkcs11_put_session(slot, session);
 

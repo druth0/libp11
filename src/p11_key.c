@@ -30,7 +30,7 @@
 #define MAX_PIN_LENGTH   32
 
 static int pkcs11_find_keys(PKCS11_TOKEN *, CK_SESSION_HANDLE, unsigned int);
-static int pkcs11_next_key(PKCS11_CTX *ctx, PKCS11_TOKEN *token,
+static int pkcs11_next_key(PKCS11_CTX *ctx, PKCS11_TOKEN *token, PKCS11_SLOT *slot,
 	CK_SESSION_HANDLE session, CK_OBJECT_CLASS type);
 static int pkcs11_init_key(PKCS11_CTX *ctx, PKCS11_TOKEN *token,
 	CK_SESSION_HANDLE session, CK_OBJECT_HANDLE o,
@@ -112,12 +112,12 @@ int pkcs11_reload_key(PKCS11_KEY *key)
 	if (pkcs11_get_session(slot, 0, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_FindObjectsInit(session, key_search_attrs, 2));
 	if (rv == CKR_OK) {
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_FindObjects(session, &kpriv->object, 1, &count));
-		CRYPTOKI_call(ctx, C_FindObjectsFinal(session));
+		CRYPTOKI_call_handle_session(rv, slot, ctx, C_FindObjectsFinal(session));
 	}
 	CRYPTOKI_checkerr(CKR_F_PKCS11_RELOAD_KEY, rv);
 
@@ -172,7 +172,7 @@ int pkcs11_generate_key(PKCS11_TOKEN *token, int algorithm, unsigned int bits,
 	pkcs11_addattr_bool(privkey_attrs + n_priv++, CKA_UNWRAP, TRUE);
 
 	/* call the pkcs11 module to create the key pair */
-	rv = CRYPTOKI_call(ctx, C_GenerateKeyPair(
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_GenerateKeyPair(
 		session,
 		&mechanism,
 		pubkey_attrs,
@@ -292,7 +292,7 @@ static int pkcs11_store_key(PKCS11_TOKEN *token, EVP_PKEY *pk,
 	}
 
 	/* Now call the pkcs11 module to create the object */
-	rv = CRYPTOKI_call(ctx, C_CreateObject(session, attrs, n, &object));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_CreateObject(session, attrs, n, &object));
 
 	/* Zap all memory allocated when building the template */
 	pkcs11_zap_attrs(attrs, n);
@@ -359,7 +359,7 @@ int pkcs11_authenticate(PKCS11_KEY *key, CK_SESSION_HANDLE session)
 
 	/* Handle CKF_PROTECTED_AUTHENTICATION_PATH */
 	if (token->secureLogin) {
-		rv = CRYPTOKI_call(ctx,
+		CRYPTOKI_call_handle_session(rv, slot, ctx,
 			C_Login(session, CKU_CONTEXT_SPECIFIC, NULL, 0));
 		return rv == CKR_USER_ALREADY_LOGGED_IN ? 0 : rv;
 	}
@@ -390,7 +390,7 @@ int pkcs11_authenticate(PKCS11_KEY *key, CK_SESSION_HANDLE session)
 	UI_free(ui);
 
 	/* Login with the PIN */
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_Login(session, CKU_CONTEXT_SPECIFIC,
 			(CK_UTF8CHAR *)pin, strlen(pin)));
 	OPENSSL_cleanse(pin, MAX_PIN_LENGTH+1);
@@ -452,7 +452,7 @@ int pkcs11_remove_key(PKCS11_KEY *key)
 	if (pkcs11_get_session(slot, 1, &session))
 		return -1;
 
-	rv = CRYPTOKI_call(ctx, C_DestroyObject(session, kpriv->object));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_DestroyObject(session, kpriv->object));
 	pkcs11_put_session(slot, session);
 	CRYPTOKI_checkerr(CKR_F_PKCS11_REMOVE_KEY, rv);
 
@@ -465,6 +465,7 @@ int pkcs11_remove_key(PKCS11_KEY *key)
 static int pkcs11_find_keys(PKCS11_TOKEN *token, CK_SESSION_HANDLE session, unsigned int type)
 {
 	PKCS11_CTX *ctx = TOKEN2CTX(token);
+        PKCS11_SLOT *slot = TOKEN2SLOT(token);
 	CK_OBJECT_CLASS key_search_class;
 	CK_ATTRIBUTE key_search_attrs[1] = {
 		{CKA_CLASS, &key_search_class, sizeof(key_search_class)},
@@ -473,28 +474,28 @@ static int pkcs11_find_keys(PKCS11_TOKEN *token, CK_SESSION_HANDLE session, unsi
 
 	/* Tell the PKCS11 lib to enumerate all matching objects */
 	key_search_class = type;
-	rv = CRYPTOKI_call(ctx,
+	CRYPTOKI_call_handle_session(rv, slot, ctx,
 		C_FindObjectsInit(session, key_search_attrs, 1));
 	CRYPTOKI_checkerr(CKR_F_PKCS11_FIND_KEYS, rv);
 
 	do {
-		res = pkcs11_next_key(ctx, token, session, type);
+          res = pkcs11_next_key(ctx, token, slot, session, type);
 	} while (res == 0);
 
-	CRYPTOKI_call(ctx, C_FindObjectsFinal(session));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_FindObjectsFinal(session));
 
 	return (res < 0) ? -1 : 0;
 }
 
-static int pkcs11_next_key(PKCS11_CTX *ctx, PKCS11_TOKEN *token,
-		CK_SESSION_HANDLE session, CK_OBJECT_CLASS type)
+static int pkcs11_next_key(PKCS11_CTX *ctx, PKCS11_TOKEN *token, PKCS11_SLOT * slot,
+                           CK_SESSION_HANDLE session, CK_OBJECT_CLASS type)
 {
 	CK_OBJECT_HANDLE obj;
 	CK_ULONG count;
 	int rv;
 
 	/* Get the next matching object */
-	rv = CRYPTOKI_call(ctx, C_FindObjects(session, &obj, 1, &count));
+	CRYPTOKI_call_handle_session(rv, slot, ctx, C_FindObjects(session, &obj, 1, &count));
 	CRYPTOKI_checkerr(CKR_F_PKCS11_NEXT_KEY, rv);
 
 	if (count == 0)
